@@ -5,24 +5,103 @@ require_once __DIR__.'/../Utils/userRegisterValidator.php';
 
 class User {
     public int $id;
-    public string $username;
     public string $email;
+    public string $username;
     public string $password;
     public string $salt;
-    public string $date;
+    public ?string $date;
 
-    public function __construct(int $id, string $username, string $email, string $password, string $salt, string $date = "") {
+    public function __construct(int $id, string $email, string $username, string $password, ?string $salt = NULL, ?string $date = NULL) {
         $this->id = $id;
-        $this->username = $username;
         $this->email = $email;
+        $this->username = $username;
         $this->password = $password;
-        $this->salt = $salt;
+        $this->salt = $salt ?? User::createSalt();
         $this->date = $date;
     }
 
 
     public function checkPassword(string $password) : bool {
         return $this->password == User::hashPassword($password, $this->salt);
+    }
+
+    public function getLoginAttempts() : int {
+        DB::getPDO()->query("
+            DELETE FROM loginAttempts WHERE TIMESTAMPDIFF(MINUTE, last_attempt, NOW()) >= 5;
+        ");
+
+        $sql = DB::getPDO()->prepare("
+            SELECT remaining_attempts FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+        ");
+        $sql->execute( [
+            'user_id' => $this->id,
+            'machine_id' => USER_IP,
+        ] );
+
+        if ($sql->rowCount() == 0) {
+            return 5;
+        }
+        return $sql->fetch()["remaining_attempts"];
+    }
+
+    public function insert() : int {
+
+        $hashedPassword = User::hashPassword($this->password, $this->salt);
+
+        $sql = DB::getPDO()->prepare("
+            INSERT INTO users (email, username, password, salt) 
+            VALUES (:email, :username, :password, :salt)
+        ");
+        $sql->execute( [
+            'email' => $this->email,
+            'username' => $this->username,
+            'password' => $hashedPassword,
+            'salt' => $this->salt,
+        ] );
+
+        // return id of the inserted user
+        $sql = DB::getPDO()->query("SELECT last_insert_id();");
+        return intval($sql->fetchColumn());
+    }
+
+    public function decrementLoginRetries() : void {
+        
+        $sql = DB::getPDO()->prepare("
+            SELECT remaining_attempts FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+        ");
+        $sql->execute( [
+            'user_id' => $this->id,
+            'machine_id' => USER_IP,
+        ] );
+
+        if ($sql->rowCount() == 0) {
+            $sql = DB::getPDO()->prepare("
+                INSERT INTO loginAttempts (user_id, machine_id, remaining_attempts) VALUES (:user_id, :machine_id, :remaining_attempts);
+            ");
+            $sql->execute( [
+                'user_id' => $this->id,
+                'machine_id' => USER_IP,
+                'remaining_attempts' => 4,
+            ] );
+        } else {
+            $sql = DB::getPDO()->prepare("
+                UPDATE loginAttempts SET remaining_attempts = remaining_attempts - 1 WHERE user_id = :user_id AND machine_id = :machine_id AND remaining_attempts > 0;
+            ");
+            $sql->execute( [
+                'user_id' => $this->id,
+                'machine_id' => USER_IP,
+            ] );
+        }
+    }
+
+    public function resetLoginRetries() : void {
+        $sql = DB::getPDO()->prepare("
+            DELETE FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+        ");
+        $sql->execute( [
+            'user_id' => $this->id,
+            'machine_id' => USER_IP,
+        ] );
     }
 
 
@@ -39,7 +118,7 @@ class User {
         }
 
         $array = $sql->fetch();
-        return new User($array['id'], $array['username'], $array['email'], $array['password'], $array['salt'], $array['register_date']);
+        return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
     public static function getUserByEmail(string $email) : ?User {
@@ -55,7 +134,7 @@ class User {
         }
 
         $array = $sql->fetch();
-        return new User($array['id'], $array['username'], $array['email'], $array['password'], $array['salt'], $array['register_date']);
+        return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
     public static function getUserByUsername(string $username) : ?User {
         
@@ -70,7 +149,7 @@ class User {
         }
 
         $array = $sql->fetch();
-        return new User($array['id'], $array['username'], $array['email'], $array['password'], $array['salt'], $array['register_date']);
+        return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
     public static function getUserByUsernameOrEmail(string $username, string $email) : ?User {
@@ -87,7 +166,7 @@ class User {
         }
 
         $array = $sql->fetch();
-        return new User($array['id'], $array['username'], $array['email'], $array['password'], $array['salt'], $array['register_date']);
+        return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
     public static function getUserByIdentifier(string $identifier) : ?User {
@@ -95,28 +174,16 @@ class User {
     }
 
 
-    public static function insertUser(string $username, string $email, string $password) : User {
+    public static function insertUser(string $email, string $username, string $password) : User {
 
-        $credentialsError = RegisterValidator::verify_credentials($username, $email, $password);
+        $credentialsError = RegisterValidator::verify_credentials($email, $username, $password);
         if ($credentialsError != null) {
             throw new Exception($credentialsError);
         }
 
-        $salt = bin2hex(openssl_random_pseudo_bytes(16));
-        $hashedPassword = User::hashPassword($password, $salt);
-
-        $sql = DB::getPDO()->prepare( "INSERT INTO users (username, email, password, salt) VALUES (:username, :email, :password, :salt)" );
-        $sql->execute( [
-            'username' => $username,
-            'email' => $email,
-            'password' => $hashedPassword,
-            'salt' => $salt,
-        ] );
-
-
-        $sql = DB::getPDO()->query("SELECT last_insert_id();");
-        $id = intval($sql->fetchColumn());
-        return User::getUserById($id);
+        $user = new User(0, $username, $email, $password);
+        $userId = $user->insert();
+        return User::getUserById($userId);
     }
 
 
@@ -134,7 +201,11 @@ class User {
 
 
     public static function hashPassword(string $password, string $salt) : string {
-        return hash_pbkdf2("sha256", $password, $salt, 1000);
+        return hash_pbkdf2("sha512", $password, $salt, 1000);
+    }
+
+    public static function createSalt() : string {
+        return bin2hex(openssl_random_pseudo_bytes(16));
     }
 
     // public static function getUserById(int $userId) : array{
@@ -170,7 +241,7 @@ class User {
     //     }
 
     //     $array = $sql->fetch();
-    //     return new User($array['id'], $array['username'], $array['email'], $array['password'], $array['register_date']);
+    //     return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['register_date']);
     // }
 }
 

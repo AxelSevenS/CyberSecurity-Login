@@ -4,10 +4,10 @@ require_once __DIR__.'/../Model/userModel.php';
 
 define('MAX_LOGIN_TRIES', 5);
 
-class LoginController {
+class ModifyPasswordController {
 
 
-    public static function resolveLogin() {
+    public static function resolveModifyPassword() {
 
         if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
 
@@ -23,6 +23,7 @@ class LoginController {
             if(session_id() === "") {
                 session_start();
             }
+
             $_SESSION['user'] = $loginUser;
             header('Location: /');
             return;
@@ -45,24 +46,26 @@ class LoginController {
 
     public static function tryLogin(string $identifier, string $password) : string|User {
 
+        if(session_id() === "") {
+            session_start();
+        }
+        if ( isset($_SESSION['loginRetries']) && $_SESSION['loginRetries'] <= 0 ) {
+            return "Too many login retries";
+        }
+
         $user = User::getUserByIdentifier( $identifier );
         if ( $user == NULL ) {
             return "User not found";
         }
 
-        if ( $user->getLoginAttempts() <= 0 ) {
-            return "Too many login attempts";
-        }
-
         if ( !$user->checkPassword( $password ) ) {
-            $user->DecrementLoginRetries();
+            $_SESSION['loginRetries'] = ($_SESSION['loginRetries'] ?? MAX_LOGIN_TRIES) - 1;
             return "Wrong password";
         }
 
-        $user->resetLoginRetries();
-
 
         $user->password = $password;
+        $_SESSION['loginRetries'] = MAX_LOGIN_TRIES;
         $_SESSION['userID'] = $user->id;
         $_SESSION['userName'] = $user->username;
         $_SESSION['userEmail'] = $user->email;

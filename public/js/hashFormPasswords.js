@@ -4,7 +4,6 @@ function onSubmit(event) {
     let target = event.target;
 
     // hash password fields
-
     let passwordFields = target.querySelectorAll('input[type=password]');
     for (let i = 0; i < passwordFields.length; i++) {
         if (passwordFields[i].value != '') {

@@ -1,7 +1,12 @@
 <form method="post" name="loginForm">
 
     <!-- if already logged in, say it -->
-    <?php if (isset($_SESSION['userId'])): ?>
+    <?php 
+        if(session_id() === "") {
+            session_start();
+        }
+        if (isset($_SESSION['userID'])): 
+    ?>
         <p>You are already logged in</p>
         <a href="/logout">Logout</a>
     <?php endif; ?>
