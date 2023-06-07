@@ -1,11 +1,23 @@
-<form method="post" name="accountForm">
 
-    <input type="text" name="identifier" placeholder="Identifiant" <?php echo isset($_GET["email"]) ? "value='".$_GET["email"]."'" : ""; ?> required>
-    <input type="password" name="password" placeholder="Password" required>
-    <input type="checkbox" name="rememberMe" value="rememberMe">
-    <label for="rememberMe">Remember me</label>
+<h1>Account</h1>
+
+<p>UserID: <?= $_SESSION['userID'] ?></p>
+<p>Username: <?= $_SESSION['userName'] ?></p>
+<p>Email: <?= $_SESSION['userEmail'] ?></p>
+<a href="/logout">Logout</a>
+
+<form action="/modifyPassword" method="post" name="modifyAccountForm">
+
+    <input type="password" name="newPassword" placeholder="New Password" required>
+    <label for="newPassword">New Password</label>
+    <br>
+    <input type="password" name="newPasswordConfirm" placeholder="Confirm new Password" required>
+    <label for="newPasswordConfirm">Confirm New Password</label>
+    <br>
+    <input type="password" name="oldPassword" placeholder="Old Password" required>
+    <label for="oldPassword">Old Password</label>
+    <br>
 
     <input type="submit" name="submit">
 
 </form>
-<p>Don't have an Account? <a href="register">Register</a></p>

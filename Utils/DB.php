@@ -14,7 +14,7 @@ class DB {
             $dbname = "SecurityProject-Axel";
             $username = "SecurityProject-Axel";
             $password = "S3KuR1tY!!*1987";
-            // create the database if it doesn't exist
+            
             self::$connection = new PDO("mysql:host=localhost", "root", "");
             self::$connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -23,16 +23,16 @@ class DB {
                 CREATE USER IF NOT EXISTS '$username'@'localhost' IDENTIFIED BY '$password';
                 GRANT ALL ON `$dbname`.* TO '$username'@'localhost';
                 SET GLOBAL event_scheduler = ON;
-                FLUSH PRIVILEGES;"
-            );
-            self::$connection->exec("USE `$dbname`;");
+                FLUSH PRIVILEGES;
+                USE `$dbname`;
+            ");
 
 
             self::$connection->exec("
                 CREATE TABLE IF NOT EXISTS users (
                     id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(255) NOT NULL,
                     email VARCHAR(255) NOT NULL,
+                    username VARCHAR(255) NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     salt VARCHAR(255) NOT NULL,
                     register_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -40,7 +40,7 @@ class DB {
             ");
 
             self::$connection->exec("
-                CREATE TABLE IF NOT EXISTS loginAttempts (
+                CREATE TABLE IF NOT EXISTS login_attempts (
                     id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                     user_id INT(6) UNSIGNED NOT NULL,
                     machine_id VARCHAR(255) NOT NULL,
@@ -50,11 +50,12 @@ class DB {
             ");
 
             self::$connection->exec("
-                CREATE TABLE IF NOT EXISTS passwordResets (
+                CREATE TABLE IF NOT EXISTS password_edits (
                     id INT(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                     user_id INT(6) UNSIGNED NOT NULL,
-                    token VARCHAR(255) NOT NULL,
-                    expiration_date TIMESTAMP NOT NULL
+                    code VARCHAR(255) NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    expiration_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             ");
             

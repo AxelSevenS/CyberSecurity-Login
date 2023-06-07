@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__.'/../dbconnection/DB.php';
+require_once __DIR__.'/../Utils/DB.php';
 require_once __DIR__.'/../Utils/userRegisterValidator.php';
 
 class User {
@@ -11,7 +11,7 @@ class User {
     public string $salt;
     public ?string $date;
 
-    public function __construct(int $id, string $email, string $username, string $password, ?string $salt = NULL, ?string $date = NULL) {
+    private function __construct(int $id, string $email, string $username, string $password, ?string $salt = NULL, ?string $date = NULL) {
         $this->id = $id;
         $this->email = $email;
         $this->username = $username;
@@ -20,18 +20,17 @@ class User {
         $this->date = $date;
     }
 
-
     public function checkPassword(string $password) : bool {
         return $this->password == User::hashPassword($password, $this->salt);
     }
 
     public function getLoginAttempts() : int {
         DB::getPDO()->query("
-            DELETE FROM loginAttempts WHERE TIMESTAMPDIFF(MINUTE, last_attempt, NOW()) >= 5;
+            DELETE FROM login_attempts WHERE TIMESTAMPDIFF(MINUTE, last_attempt, NOW()) >= 5;
         ");
 
         $sql = DB::getPDO()->prepare("
-            SELECT remaining_attempts FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+            SELECT remaining_attempts FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
         ");
         $sql->execute( [
             'user_id' => $this->id,
@@ -44,30 +43,10 @@ class User {
         return $sql->fetch()["remaining_attempts"];
     }
 
-    public function insert() : int {
-
-        $hashedPassword = User::hashPassword($this->password, $this->salt);
-
-        $sql = DB::getPDO()->prepare("
-            INSERT INTO users (email, username, password, salt) 
-            VALUES (:email, :username, :password, :salt)
-        ");
-        $sql->execute( [
-            'email' => $this->email,
-            'username' => $this->username,
-            'password' => $hashedPassword,
-            'salt' => $this->salt,
-        ] );
-
-        // return id of the inserted user
-        $sql = DB::getPDO()->query("SELECT last_insert_id();");
-        return intval($sql->fetchColumn());
-    }
-
-    public function decrementLoginRetries() : void {
+    public function decrementLoginAttempts() : void {
         
         $sql = DB::getPDO()->prepare("
-            SELECT remaining_attempts FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+            SELECT remaining_attempts FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
         ");
         $sql->execute( [
             'user_id' => $this->id,
@@ -76,7 +55,7 @@ class User {
 
         if ($sql->rowCount() == 0) {
             $sql = DB::getPDO()->prepare("
-                INSERT INTO loginAttempts (user_id, machine_id, remaining_attempts) VALUES (:user_id, :machine_id, :remaining_attempts);
+                INSERT INTO login_attempts (user_id, machine_id, remaining_attempts) VALUES (:user_id, :machine_id, :remaining_attempts);
             ");
             $sql->execute( [
                 'user_id' => $this->id,
@@ -85,7 +64,7 @@ class User {
             ] );
         } else {
             $sql = DB::getPDO()->prepare("
-                UPDATE loginAttempts SET remaining_attempts = remaining_attempts - 1 WHERE user_id = :user_id AND machine_id = :machine_id AND remaining_attempts > 0;
+                UPDATE login_attempts SET remaining_attempts = remaining_attempts - 1 WHERE user_id = :user_id AND machine_id = :machine_id AND remaining_attempts > 0;
             ");
             $sql->execute( [
                 'user_id' => $this->id,
@@ -94,9 +73,9 @@ class User {
         }
     }
 
-    public function resetLoginRetries() : void {
+    public function resetLoginAttempts() : void {
         $sql = DB::getPDO()->prepare("
-            DELETE FROM loginAttempts WHERE user_id = :user_id AND machine_id = :machine_id;
+            DELETE FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
         ");
         $sql->execute( [
             'user_id' => $this->id,
@@ -152,12 +131,12 @@ class User {
         return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
-    public static function getUserByUsernameOrEmail(string $username, string $email) : ?User {
+    public static function getUserByUsernameOrEmail(string $email, string $username) : ?User {
         
-        $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE (username = :username OR email = :email) ");
+        $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE (email = :email OR username = :username) ");
         $sql->execute( [
-            'username' => $username,
             'email' => $email,
+            'username' => $username,
         ] );
         
 
@@ -181,9 +160,23 @@ class User {
             throw new Exception($credentialsError);
         }
 
-        $user = new User(0, $username, $email, $password);
-        $userId = $user->insert();
-        return User::getUserById($userId);
+        $salt = User::createSalt();
+        $hashedPassword = User::hashPassword($password, $salt);
+
+        $sql = DB::getPDO()->prepare("
+            INSERT INTO users (email, username, password, salt) 
+            VALUES (:email, :username, :password, :salt)
+        ");
+        $sql->execute( [
+            'email' => $email,
+            'username' => $username,
+            'password' => $hashedPassword,
+            'salt' => $salt,
+        ] );
+
+        // return id of the inserted user
+        $sql = DB::getPDO()->query("SELECT last_insert_id();");
+        return User::getUserById(intval($sql->fetchColumn()));
     }
 
 

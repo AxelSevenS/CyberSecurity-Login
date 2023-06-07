@@ -10,8 +10,16 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
     <body>
-        <?php if (isset($error) && $error != ""): ?>
-            <p><?= $error ?></p>
+        <div>
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+            <a href="/account">Account</a>
+            <a href="/logout">Logout</a>
+        </div>
+        <br>
+        <br>
+        <?php if (defined("ERROR_MSG")): ?>
+            <p><?= ERROR_MSG ?></p>
         <?php endif; ?>
         <?= $content ?>
     </body>

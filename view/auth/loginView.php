@@ -1,17 +1,19 @@
 <form method="post" name="loginForm">
 
-    <!-- if already logged in, say it -->
     <?php 
         if(session_id() === "") {
             session_start();
         }
-        if (isset($_SESSION['userID'])): 
+        if (isset($_SESSION['user'])): 
     ?>
-        <p>You are already logged in</p>
+        <span>You are already logged in.</span>
         <a href="/logout">Logout</a>
-    <?php endif; ?>
+        <br>
+    <?php 
+        endif; 
+    ?>
 
-    <input type="text" name="identifier" placeholder="Identifiant" <?php echo isset($_GET["email"]) ? "value='".$_GET["email"]."'" : ""; ?> required>
+    <input type="text" name="identifier" placeholder="Identifiant" <?= isset($_GET["email"]) ? "value='".$_GET["email"]."'" : ""; ?> required>
     <input type="password" name="password" placeholder="Password" required>
     <input type="checkbox" name="rememberMe" value="rememberMe">
     <label for="rememberMe">Remember me</label>

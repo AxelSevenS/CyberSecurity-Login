@@ -20,10 +20,6 @@ class LoginController {
                 return;
             }
 
-            if(session_id() === "") {
-                session_start();
-            }
-            $_SESSION['user'] = $loginUser;
             header('Location: /');
             return;
         }
@@ -37,7 +33,7 @@ class LoginController {
         require_once __DIR__.'/../view/auth/loginView.php';
         $content = ob_get_clean();
         $title = "Login Page";
-        $error = $errorMessage;
+        define("ERROR_MSG", $errorMessage);
 
         require_once __DIR__.'/../view/template.php';
     }
@@ -55,17 +51,18 @@ class LoginController {
         }
 
         if ( !$user->checkPassword( $password ) ) {
-            $user->DecrementLoginRetries();
+            $user->decrementLoginAttempts();
             return "Wrong password";
         }
 
-        $user->resetLoginRetries();
+        $user->resetLoginAttempts();
 
 
         $user->password = $password;
-        $_SESSION['userID'] = $user->id;
-        $_SESSION['userName'] = $user->username;
-        $_SESSION['userEmail'] = $user->email;
+        if ( session_id() === "" ) {
+            session_start();
+        }
+        $_SESSION['user'] = $user;
         return $user;
     }
 

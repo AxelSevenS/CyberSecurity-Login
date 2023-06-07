@@ -32,7 +32,7 @@ class RegisterController {
         require_once __DIR__.'/../view/auth/registerView.php';
         $content = ob_get_clean();
         $title = "Register Page";
-        $error = $errorMessage;
+        define("ERROR_MSG", $errorMessage);
 
         require_once __DIR__.'/../view/template.php';
     }

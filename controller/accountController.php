@@ -4,45 +4,47 @@ require_once __DIR__.'/../Model/userModel.php';
 
 define('MAX_LOGIN_TRIES', 5);
 
-class ModifyPasswordController {
+class AccountController {
 
 
-    public static function resolveModifyPassword() {
+    public static function resolveAccount() {
 
-        if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
+        if ( $_SERVER['REQUEST_METHOD'] !== 'GET' ) {
+            return;
+        }
+        if ( session_id() === "" ) {
+            session_start();
+        }
 
-            $identifier = $_POST['identifier'];
-            $password = $_POST['password'];
-
-            $loginUser = self::tryLogin($identifier, $password);
-            if ( is_string($loginUser) ) {
-                self::loginPage($loginUser);
-                return;
-            }
-
-            if(session_id() === "") {
-                session_start();
-            }
-
-            $_SESSION['user'] = $loginUser;
-            header('Location: /');
+        
+        if ( !isset($_SESSION['user']) ) {
+            define("ERROR_MSG", "You are not logged in");
+            header('Location: /login');
             return;
         }
 
-        self::loginPage();
+        self::accountPage();
 
     }
 
-    public static function loginPage(?string $errorMessage = NULL) {
+    public static function accountPage(?string $errorMessage = NULL) {
         ob_start();
-        require_once __DIR__.'/../view/auth/loginView.php';
+        require_once __DIR__.'/../view/auth/accountView.php';
         $content = ob_get_clean();
-        $title = "Login Page";
-        $error = $errorMessage;
+        $title = "Account Page";
+        define("ERROR_MSG", $errorMessage);
 
         require_once __DIR__.'/../view/template.php';
     }
 
+    public static function ResolveLogout() {
+        if ( session_id() === "" ) {
+            session_start();
+        }
+        unset($_SESSION['user']);
+        header('Location: /login');
+    }
+    
 
     public static function tryLogin(string $identifier, string $password) : string|User {
 
