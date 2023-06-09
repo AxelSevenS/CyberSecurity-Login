@@ -19,18 +19,29 @@ class PasswordEdit {
         $this->date = $date;
     }
 
-    public function validatePasswordEdit(string $code, int $editId) : ?string {
-        $user = User::getUserById($this->userId);
-        if ( $user == NULL ) {
-            return "User not found";
-        }
+    // Insert a new password edit
+    // returns the new password edit
+    public static function insertEdit(User $user, string $newPassword, string $code) : PasswordEdit {
+        // Insert new password edit
+        $hashedCode = User::hashPassword($code, $user->salt);
 
-        if ( User::hashPassword($code, $user->salt) == $this->code ) {
-            return NULL;
-        }
+        $hashedPassword = User::hashPassword($newPassword, $user->salt);
+        $sql = DB::getPDO()->prepare("
+            INSERT INTO password_edits (user_id, code, password)
+            VALUES (:user_id, :code, :password);
+        ");
+        $sql->execute( [
+            'user_id' => $user->id,
+            'code' => $hashedCode,
+            'password' => $hashedPassword,
+        ] );
 
+        $sql = DB::getPDO()->query("SELECT last_insert_id();");
+        return PasswordEdit::getEditById(intval($sql->fetchColumn()));
     }
 
+    // Get a password edit by id
+    // returns null if not found
     public static function getEditById(int $id) : ?PasswordEdit {
         $sql = DB::getPDO()->prepare("
             SELECT * FROM password_edits WHERE id = :id;
@@ -47,10 +58,12 @@ class PasswordEdit {
             $result['user_id'],
             $result['code'],
             $result['password'],
-            $result['expiration_date'],
+            $result['date'],
         );
     }
 
+    // Get a password edit by user id
+    // returns null if not found
     public static function getEditByUserId(string $userId) : ?PasswordEdit {
         $sql = DB::getPDO()->prepare("
             SELECT * FROM password_edits WHERE user_id = :user_id;
@@ -67,44 +80,9 @@ class PasswordEdit {
             $result['user_id'],
             $result['code'],
             $result['password'],
-            $result['expiration_date'],
+            $result['date'],
         );
     }
-
-    // public static function modifyPassword(User $user, string $newPassword) : ?string {
-
-    //     // Delete old password edits
-    //     DB::getPDO()->exec("
-    //         DELETE FROM password_edits WHERE TIMESTAMPDIFF(MINUTE, expiration_date, NOW()) >= 5;
-    //     ");
-        
-    //     // // Check if the user has already changed his password in the last 5 minutes
-    //     // $sql = DB::getPDO()->prepare("
-    //     //     SELECT * FROM password_edits WHERE user_id = :user_id AND TIMESTAMPDIFF(MINUTE, date, NOW()) < 5;
-    //     // ");
-    //     // $sql->execute( [
-    //     //     'user_id' => $this->id,
-    //     // ] );
-
-    //     // if ( $sql->rowCount() > 0 ) {
-    //     //     return "You have already changed your password in the last 5 minutes";
-    //     // }
-
-    //     // Insert new password edit
-    //     $code = User::createSalt();
-    //     $hashedCode = User::hashPassword($code, $user->salt);
-    //     $hashedPassword = User::hashPassword($user->password, $user->salt);
-    //     $sql = DB::getPDO()->prepare("
-    //         INSERT INTO password_edits (user_id, code, password)
-    //         VALUES (:user_id, :code, :password);
-    //     ");
-    //     $sql->execute( [
-    //         'user_id' => $user->id,
-    //         'code' => $hashedCode,
-    //         'password' => $hashedPassword,
-    //     ] );
-    //     return $code;
-    // }
 
 }
 

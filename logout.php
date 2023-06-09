@@ -2,7 +2,6 @@
 
 include_once __DIR__.'/controller/accountController.php';
 
-AccountController::ResolveLogout();
-
+AccountController::resolveLogout();
 
 ?>

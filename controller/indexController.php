@@ -3,6 +3,7 @@
 
 class IndexController {
 
+    // Show the index page
     public static function resolveIndex() {
         ob_start();
         require_once __DIR__.'/../view/indexView.php';

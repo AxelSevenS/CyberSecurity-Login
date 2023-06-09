@@ -2,44 +2,60 @@
 
 require_once __DIR__.'/../Model/passwordEditModel.php';
 require_once __DIR__.'/accountController.php';
+require_once __DIR__.'/../Utils/JWT.php';
 
 class PasswordEditController {
 
-    public static function ResolveModifyPassword() {
-        
-        try {
-            $newPassword = $_POST['newPassword'];
-            $newPasswordConfirm = $_POST['newPasswordConfirm'];
-            $oldPassword = $_POST['oldPassword'];
-        } catch (Exception $e) {
-            define("ERROR_MSG", "Invalid request [".$e->getMessage()."]");
-            header('Location: /account');
-            return;
+    // Handle a Password Edit request
+    public static function resolveModifyPassword() {
+
+        if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) {
+            // define("ERROR_MSG", "Invalid request method");
+            header("Location: /account?error=Invalid request method");
+            exit;
         }
+        if ( !isset($_POST['newPassword']) || !isset($_POST['newPasswordConfirm']) || !isset($_POST['oldPassword']) ) {
+            // define("ERROR_MSG", "Invalid request parameters");
+            header("Location: /account?error=Invalid request parameters");
+            exit;
+        }
+        $newPassword = $_POST['newPassword'];
+        $newPasswordConfirm = $_POST['newPasswordConfirm'];
+        $oldPassword = $_POST['oldPassword'];
+
+        $error = self::modifyPassword($newPassword, $newPasswordConfirm, $oldPassword);
+        if ( $error !== NULL ) {
+            // define("ERROR_MSG", $error);
+            header("Location: /account?error=$error");
+            exit;
+        }
+        
+    }
+
+    // Create a password edit request, waiting for validation
+    public static function modifyPassword(string $newPassword, string $newPasswordConfirm, string $oldPassword) : ?string {
 
         if ( $newPassword !== $newPasswordConfirm ) {
-            define("ERROR_MSG", "New Passwords do not match");
-            header('Location: /account');
-            return;
+            return "New Passwords do not match";
+        }
+        
+        $token = JWT::resolveTokenValidity();
+        if  ( $token === NULL ) {
+            return "Invalid token";
         }
 
-        if ( session_id() === "" ) {
-            session_start();
-        }
-        $user = User::getUserById( $_SESSION['user']->id );
+        $user = User::getUserById( $token->getDecodedPayload()['sub'] );
         if ( $user === NULL ) {
-            define("ERROR_MSG", "User not found");
-            header('Location: /account');
-            return;
+            return "User not found";
         }
         if ( !$user->checkPassword($oldPassword) ) {
-            define("ERROR_MSG", "Old Password is incorrect");
-            header('Location: /account');
-            return;
+            return "Old Password is incorrect";
         }
+
+
         // Delete old password edits
         DB::getPDO()->exec("
-            DELETE FROM password_edits WHERE TIMESTAMPDIFF(MINUTE, expiration_date, NOW()) >= 5;
+            DELETE FROM password_edits WHERE TIMESTAMPDIFF(MINUTE, date, NOW()) >= 5;
         ");
         
         // Check if the user has already changed his password in the last 5 minutes
@@ -54,27 +70,16 @@ class PasswordEditController {
             return "You have already changed your password in the last 5 minutes";
         }
 
-        // Insert new password edit
         $code = User::createSalt();
-        $hashedCode = User::hashPassword($code, $user->salt);
-
-        $hashedPassword = User::hashPassword($newPassword, $user->salt);
-        $sql = DB::getPDO()->prepare("
-            INSERT INTO password_edits (user_id, code, password)
-            VALUES (:user_id, :code, :password);
-        ");
-        $sql->execute( [
-            'user_id' => $user->id,
-            'code' => $hashedCode,
-            'password' => $hashedPassword,
-        ] );
-
-        $sql = DB::getPDO()->query("SELECT last_insert_id();");
-        $edit = PasswordEdit::getEditById(intval($sql->fetchColumn()));
+        $edit = PasswordEdit::insertEdit( $user, $newPassword, $code );
 
         self::sendPasswordEditConfirmationEmail($code, $edit->id);
+
+        return NULL;
     }
 
+    // Send an email to the user with a link to validate the password edit
+    // (This is just a placeholder, it doesn't actually send an email; it just prints a link to the page)
     public static function sendPasswordEditConfirmationEmail(string $validationCode, int $editId) {
         // TODO: replace this with a real email sending function
         ?>
@@ -84,23 +89,24 @@ class PasswordEditController {
         <?php
     }
 
-    public static function ResolveValidatePasswordEdit() {
+    // Handle a Password Edit validation request
+    public static function resolveValidatePasswordEdit() {
         $id = $_GET['id'];
         $validationCode = $_GET['code'];
 
         $passwordEdit = PasswordEdit::getEditById( $id );
 
         if ( $passwordEdit === NULL ) {
-            define("ERROR_MSG", "Password edit not found");
-            header('Location: /login');
-            return;
+            // define("ERROR_MSG", "Invalid password edit");
+            header('Location: /login?error=Invalid password edit');
+            exit;
         }
 
         $user = User::getUserById( $passwordEdit->userId );
         if ( $passwordEdit->code !== User::hashPassword($validationCode, $user->salt) ) {
-            define("ERROR_MSG", "Invalid validation code");
-            header('Location: /login');
-            return;
+            // define("ERROR_MSG", "Invalid validation code");
+            header('Location: /login?error=Invalid validation code');
+            exit;
         }
 
         $sql = DB::getPDO()->prepare("
@@ -110,5 +116,16 @@ class PasswordEditController {
             'password' => $passwordEdit->password,
             'id' => $user->id,
         ] );
+
+        $sql = DB::getPDO()->prepare("
+            DELETE FROM password_edits WHERE id = :id;
+        ");
+        $sql->execute( [
+            'id' => $id,
+        ] );
+
+        AccountController::logout();
+        header('Location: /login');
+        exit;
     }
 }

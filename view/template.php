@@ -1,8 +1,7 @@
-<DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="fr">
     <head>
-        <!-- <link rel="stylesheet" href="public/css/style.css"> -->
         <script src="/public/js/hashFormPasswords.js" type="module" defer></script>
         <title><?= $title ?? "Sécurité" ?></title>
         <meta charset="utf-8">
@@ -18,9 +17,7 @@
         </div>
         <br>
         <br>
-        <?php if (defined("ERROR_MSG")): ?>
-            <p><?= ERROR_MSG ?></p>
-        <?php endif; ?>
+        <?= isset($_GET["error"]) ? "<p>".$_GET["error"]."</p>" : "" ?>
         <?= $content ?>
     </body>
 </html>

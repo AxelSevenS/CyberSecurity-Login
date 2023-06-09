@@ -2,6 +2,7 @@
 
 class RegisterValidator {
     
+    // Verify the email format and length
     public static function verify_email(string $email): ?string {
 
         if (strlen($email) > 255) {
@@ -15,6 +16,7 @@ class RegisterValidator {
         return NULL;
     }
     
+    // Verify the password format and length
     public static function verify_password(string $password): ?string{
 
         if (strlen($password) < 8) {
@@ -39,6 +41,7 @@ class RegisterValidator {
         return NULL;
     }
 
+    // verify that the username is not already in use
     public static function verify_username_unicity(string $username): ?string {
         if (User::getUserByUsername($username) != NULL) {
             return "Username is already in use";
@@ -47,6 +50,7 @@ class RegisterValidator {
         return NULL;
     }
 
+    // verify that the email is not already in use
     public static function verify_email_unicity(string $email): ?string {
         if (User::getUserByEmail($email) != NULL) {
             return "Email is already in use";
@@ -55,6 +59,7 @@ class RegisterValidator {
         return NULL;
     }
 
+    // verify that the credentials are valid
     public static function verify_credentials(string $email, string $username, string $password, ?string $confirmPassword = NULL) : ?string {
 
         $emailError = RegisterValidator::verify_email($email);

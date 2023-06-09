@@ -1,68 +1,89 @@
 <?php
 
+require_once __DIR__.'/accountController.php';
 require_once __DIR__.'/../Model/userModel.php';
-
-define('MAX_LOGIN_TRIES', 5);
+require_once __DIR__.'/../Model/loginAttemptModel.php';
+require_once __DIR__.'/../Utils/JWT.php';
 
 class LoginController {
 
-
+    // Prepare the page for handling requests
+    // If the request is a POST request, try to login the user
+    // If the request is a GET request, show the login page
     public static function resolveLogin() {
 
         if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
 
+            AccountController::logout();
+
             $identifier = $_POST['identifier'];
             $password = $_POST['password'];
+            $remember = isset($_POST['rememberMe']);
 
-            $loginUser = self::tryLogin($identifier, $password);
+            $loginUser = self::tryLogin($identifier, $password, $remember);
             if ( is_string($loginUser) ) {
-                self::loginPage($loginUser);
+                // define("ERROR_MSG", $loginUser);
+                $_GET['error'] = $loginUser;
+                self::loginPage();
                 return;
             }
 
-            header('Location: /');
-            return;
+            header("Location: /");
+            exit;
         }
 
         self::loginPage();
 
     }
 
-    public static function loginPage(?string $errorMessage = NULL) {
+    // Show the login page
+    // Display if the user is logged in or not
+    // Display if the user has too many login attempts
+    public static function loginPage() {
+        $loggedMessage = JWT::getLoggedMessage();
+        if ( $loggedMessage !== NULL ) {
+            define("LOGGED_MSG", $loggedMessage);
+        }
+
         ob_start();
         require_once __DIR__.'/../view/auth/loginView.php';
+
+
         $content = ob_get_clean();
         $title = "Login Page";
-        define("ERROR_MSG", $errorMessage);
 
         require_once __DIR__.'/../view/template.php';
     }
 
+    // Try to login the user
+    // an error message is returned if the login failed
+    // the user is returned if the login succeeded
+    public static function tryLogin(string $identifier, string $password, bool $remember) : string|User {
 
-    public static function tryLogin(string $identifier, string $password) : string|User {
 
         $user = User::getUserByIdentifier( $identifier );
         if ( $user == NULL ) {
             return "User not found";
         }
 
-        if ( $user->getLoginAttempts() <= 0 ) {
+        if ( LoginAttempt::getLoginAttempts($user->id, USER_IP) <= 0 ) {
             return "Too many login attempts";
         }
 
         if ( !$user->checkPassword( $password ) ) {
-            $user->decrementLoginAttempts();
+            LoginAttempt::decrementLoginAttempts($user->id, USER_IP);
             return "Wrong password";
         }
 
-        $user->resetLoginAttempts();
+        LoginAttempt::resetLoginAttempts($user->id, USER_IP);
 
 
-        $user->password = $password;
-        if ( session_id() === "" ) {
-            session_start();
+        $token = JWT::generateJWT($user)->stringify();
+        if ( $remember ) {
+            setcookie('token', $token, time() + (86400 * 30), "/"); // expires in 30 days
+        } else {
+            setcookie('token', $token, 0, "/"); // expires at end of session
         }
-        $_SESSION['user'] = $user;
         return $user;
     }
 

@@ -1,9 +1,18 @@
 
-<h1>Account</h1>
+<?php
 
-<p>UserID: <?= $_SESSION['userID'] ?></p>
-<p>Username: <?= $_SESSION['userName'] ?></p>
-<p>Email: <?= $_SESSION['userEmail'] ?></p>
+if ( !isset($payload) || !isset($payload['sub']) || !isset($payload['name']) || !isset($payload['email']) ) {
+    // define("ERROR_MSG", "You are not logged in");
+    header('Location: /login?error=You are not logged in');
+    exit;
+}
+
+?>
+
+
+<p>UserID: <?= $payload['sub'] ?></p>
+<p>Username: <?= $payload['name'] ?></p>
+<p>Email: <?= $payload['email'] ?></p>
 <a href="/logout">Logout</a>
 
 <form action="/modifyPassword" method="post" name="modifyAccountForm">

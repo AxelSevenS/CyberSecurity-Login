@@ -2,10 +2,14 @@
 
 require_once __DIR__.'/../Model/userModel.php';
 require_once __DIR__.'/../Utils/userRegisterValidator.php';
+require_once __DIR__.'/../Utils/JWT.php';
 
 
 class RegisterController {
 
+    // Prepare the register page for handling requests
+    // If the request is a POST request, try to register the user
+    // If the request is a GET request, show the register page
     public static function resolveRegister() {
         if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
 
@@ -19,24 +23,36 @@ class RegisterController {
                 header('Location: /login?email='.$_POST['email']);
                 return;
             }
-            RegisterController::registerPage($user);
-            return;
+            // define("ERROR_MSG", $user);
+            $_GET['error'] = $user;
+            RegisterController::registerPage();
+            exit;
         }
 
         RegisterController::registerPage();
 
     }
 
-    public static function registerPage(?string $errorMessage = NULL) {
+    // Show the register page
+    // Display if the user is logged in or not
+    public static function registerPage() {
+        $loggedMessage = JWT::getLoggedMessage();
+        if ( $loggedMessage !== NULL ) {
+            define("LOGGED_MSG", $loggedMessage);
+        }
+
         ob_start();
         require_once __DIR__.'/../view/auth/registerView.php';
+
         $content = ob_get_clean();
         $title = "Register Page";
-        define("ERROR_MSG", $errorMessage);
 
         require_once __DIR__.'/../view/template.php';
     }
 
+    // Try to register the user
+    // an error message is returned if the registration failed
+    // the user is returned if the registration succeeded
     public static function tryRegister(?string $email, ?string $username, ?string $password, ?string $confirmPassword) : User|string {
 
         if ( $email === NULL || $username === NULL || $password === NULL || $confirmPassword === NULL ) {
@@ -48,94 +64,8 @@ class RegisterController {
             return $error_message;
         }
 
-        $user = User::insertUser($email, $username, $password);
-        if ( $user === NULL ) {
-            return "Could not register user";
-        }
-        
-        return $user;
+        return User::insertUser($email, $username, $password); // returns User or error message
     }
-
-    // public static function index() {
-
-    //     if ( isset($_GET['id']) ) {
-    //         $user = UserRepository::getUserById($_GET['id']);
-    //     } else if ( isset($_SESSION) && isset($_SESSION['userId']) ) {
-    //         $user = UserRepository::getUserById($_SESSION['userId']);
-    //     } else {
-    //         header('Location: /login');
-    //         return;
-    //     }
-
-
-    //     ob_start();
-
-    //     require __DIR__.'/../View/user.php';
-
-    //     $page_contents = ob_get_clean();
-    //     require __DIR__.'/../View/Template/page-layout.php';
-    // }
-
-	// public static function login_page(){
-
-    //     if ( isset($_GET) ) {
-            
-    //         if ( isset($_GET['id']) && isset($_GET['password']) ) {
-
-    //             $loggedUser = RegisterController::login( $_GET['id'], $_GET['password'] );
-
-    //             if ($loggedUser != null) {
-    //                 if (session_status() == PHP_SESSION_ACTIVE){
-    //                     session_destroy();
-    //                 }
-
-    //                 session_start();
-    //                 $_SESSION['userId'] = $loggedUser->id;
-    //                 $_SESSION['userName'] = $loggedUser->username;
-    //                 $_SESSION['userEmail'] = $loggedUser->email;
-    //                 $_SESSION['userPassword'] = $loggedUser->password;
-    //                 $_SESSION['userDate'] = $loggedUser->date;
-
-    //                 header('Location: ' . $_SERVER['HTTP_REFERER']);
-    //             } else {
-    //                 $error_message = "Mot de Passe ou Identifiant incorrect";
-    //             }
-    //         }
-    //     }
-
-
-    //     ob_start();
-
-	// 	require __DIR__.'/../View/login.php';
-
-    //     $page_contents = ob_get_clean();
-    //     require __DIR__.'/../View/Template/page-layout.php';
-	// }
-
-	// public static function logout_page(){
-
-    //     session_destroy();
-        
-    //     header('Location: /');
-	// }
-
-	// public static function register_page(){
-
-    //     if ( isset($_POST) && isset($_POST['username']) && isset($_POST['email']) && isset($_POST['password']) && isset($_POST['password-confirm']) ) {
-
-    //         $error_message = RegisterController::tryRegister();
-            
-    //     }
-
-
-    //     ob_start();
-
-	// 	require __DIR__.'/../View/register.php';
-
-    //     $page_contents = ob_get_clean();
-    //     require __DIR__.'/../View/Template/page-layout.php';
-
-	// }
 }
 
 ?>

@@ -20,70 +20,14 @@ class User {
         $this->date = $date;
     }
 
+    // Verifies that a give password matches the user's password in the database
+    // returns true if the password matches, false otherwise
     public function checkPassword(string $password) : bool {
         return $this->password == User::hashPassword($password, $this->salt);
     }
 
-    public function getLoginAttempts() : int {
-        DB::getPDO()->query("
-            DELETE FROM login_attempts WHERE TIMESTAMPDIFF(MINUTE, last_attempt, NOW()) >= 5;
-        ");
-
-        $sql = DB::getPDO()->prepare("
-            SELECT remaining_attempts FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
-        ");
-        $sql->execute( [
-            'user_id' => $this->id,
-            'machine_id' => USER_IP,
-        ] );
-
-        if ($sql->rowCount() == 0) {
-            return 5;
-        }
-        return $sql->fetch()["remaining_attempts"];
-    }
-
-    public function decrementLoginAttempts() : void {
-        
-        $sql = DB::getPDO()->prepare("
-            SELECT remaining_attempts FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
-        ");
-        $sql->execute( [
-            'user_id' => $this->id,
-            'machine_id' => USER_IP,
-        ] );
-
-        if ($sql->rowCount() == 0) {
-            $sql = DB::getPDO()->prepare("
-                INSERT INTO login_attempts (user_id, machine_id, remaining_attempts) VALUES (:user_id, :machine_id, :remaining_attempts);
-            ");
-            $sql->execute( [
-                'user_id' => $this->id,
-                'machine_id' => USER_IP,
-                'remaining_attempts' => 4,
-            ] );
-        } else {
-            $sql = DB::getPDO()->prepare("
-                UPDATE login_attempts SET remaining_attempts = remaining_attempts - 1 WHERE user_id = :user_id AND machine_id = :machine_id AND remaining_attempts > 0;
-            ");
-            $sql->execute( [
-                'user_id' => $this->id,
-                'machine_id' => USER_IP,
-            ] );
-        }
-    }
-
-    public function resetLoginAttempts() : void {
-        $sql = DB::getPDO()->prepare("
-            DELETE FROM login_attempts WHERE user_id = :user_id AND machine_id = :machine_id;
-        ");
-        $sql->execute( [
-            'user_id' => $this->id,
-            'machine_id' => USER_IP,
-        ] );
-    }
-
-
+    // Get a user by id
+    // returns null if not found
     public static function getUserById(int $id) : ?User {
         
         $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE id = :id");
@@ -100,6 +44,8 @@ class User {
         return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
+    // Get a user by email
+    // returns null if not found
     public static function getUserByEmail(string $email) : ?User {
         
         $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE email = :email");
@@ -115,6 +61,9 @@ class User {
         $array = $sql->fetch();
         return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
+
+    // Get a user by username
+    // returns null if not found
     public static function getUserByUsername(string $username) : ?User {
         
         $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE username = :username");
@@ -131,14 +80,14 @@ class User {
         return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
+    // Get a user whose email corresponds to the given email or whose username corresponds to the given username
+    // returns null if not found
     public static function getUserByUsernameOrEmail(string $email, string $username) : ?User {
-        
-        $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE (email = :email OR username = :username) ");
+        $sql = DB::getPDO()->prepare("SELECT * FROM users WHERE (`email` = :email OR `username` = :username) ");
         $sql->execute( [
             'email' => $email,
             'username' => $username,
         ] );
-        
 
         if ($sql->rowCount() == 0) {
             return null;
@@ -148,16 +97,20 @@ class User {
         return new User($array['id'], $array['email'], $array['username'], $array['password'], $array['salt'], $array['register_date']);
     }
 
+    // Get a user whose email or username corresponds to the given identifier
+    // returns null if not found
     public static function getUserByIdentifier(string $identifier) : ?User {
         return User::getUserByUsernameOrEmail($identifier, $identifier);
     }
 
-
-    public static function insertUser(string $email, string $username, string $password) : User {
+    // Insert a new user in the database
+    // This checks that the credentials are valid (unicity, length, format, etc.)
+    // returns the newly created user if successful, an error message otherwise
+    public static function insertUser(string $email, string $username, string $password) : User|string {
 
         $credentialsError = RegisterValidator::verify_credentials($email, $username, $password);
         if ($credentialsError != null) {
-            throw new Exception($credentialsError);
+            return $credentialsError;
         }
 
         $salt = User::createSalt();
